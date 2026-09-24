@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1" />
+<title>鹈鹕骑行记 · Pelican Ride 3D</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{width:100%;height:100%;overflow:hidden;background:#0b1020;font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;color:#fff}
+  #app{position:fixed;inset:0}
+  canvas{display:block}
+  .glass{background:rgba(15,20,40,.42);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,.16);border-radius:16px;box-shadow:0 8px 30px rgba(0,0,0,.25)}
+  /* splash */
+  #splash{position:fixed;inset:0;z-index:20;display:flex;align-items:flex-end;justify-content:center;background:#000 url(assets/poster.jpg) center/cover no-repeat;transition:opacity .8s}
+  #splash::before{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0) 30%,rgba(10,10,30,.85) 100%)}
+  #splash .inner{position:relative;text-align:center;padding:0 20px 8vh}
+  #splash h1{font-size:clamp(36px,7vw,78px);letter-spacing:.08em;text-shadow:0 4px 24px rgba(0,0,0,.5)}
+  #splash h1 span{color:#ffb35c}
+  #splash p{margin:12px 0 26px;font-size:clamp(14px,2vw,18px);opacity:.9}
+  .btn-main{font-size:20px;padding:16px 38px;border:none;border-radius:999px;cursor:pointer;color:#3b1d00;font-weight:700;background:linear-gradient(135deg,#ffd27a,#ff8a3d);box-shadow:0 10px 30px rgba(255,138,61,.5);transition:transform .15s}
+  .btn-main:hover{transform:translateY(-2px) scale(1.03)}
+  #splash small{display:block;margin-top:16px;opacity:.6}
+  .hidden{opacity:0;pointer-events:none}
+  /* HUD */
+  #stats{position:fixed;left:16px;top:16px;padding:14px 18px;min-width:220px;z-index:5;transition:opacity .6s}
+  #stats h2{font-size:18px;margin-bottom:8px}
+  #stats h2 span{color:#ffb35c}
+  .row{display:flex;justify-content:space-between;gap:16px;font-size:14px;line-height:1.9}
+  .row b{font-variant-numeric:tabular-nums;color:#ffd27a}
+  #speedo{margin-top:6px;height:6px;border-radius:3px;background:rgba(255,255,255,.15);overflow:hidden}
+  #speedo i{display:block;height:100%;width:40%;background:linear-gradient(90deg,#5ee7a0,#ffd27a,#ff5e5e);transition:width .2s}
+  #panel{position:fixed;right:16px;top:16px;width:260px;padding:14px 16px;z-index:5;max-height:calc(100% - 32px);overflow:auto;transition:opacity .6s,transform .3s}
+  #panel h3{font-size:13px;opacity:.75;margin:10px 0 6px;font-weight:600;letter-spacing:.05em}
+  #panel h3:first-child{margin-top:0}
+  .grp{display:flex;flex-wrap:wrap;gap:6px}
+  .grp button{flex:1 1 auto;padding:7px 8px;font-size:13px;border-radius:10px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.08);color:#fff;cursor:pointer;transition:all .15s;white-space:nowrap}
+  .grp button:hover{background:rgba(255,255,255,.2)}
+  .grp button.on{background:linear-gradient(135deg,#ffd27a,#ff8a3d);color:#3b1d00;border-color:transparent;font-weight:700}
+  input[type=range]{width:100%;accent-color:#ff8a3d}
+  #hint{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);padding:8px 16px;font-size:12.5px;z-index:5;white-space:nowrap;transition:opacity .6s}
+  #toast{position:fixed;left:50%;top:18px;transform:translate(-50%,-80px);padding:10px 18px;z-index:30;transition:transform .35s;font-size:14px}
+  #toast.show{transform:translate(-50%,0)}
+  #toggle{display:none;position:fixed;right:16px;top:16px;z-index:6;width:44px;height:44px;border-radius:50%;font-size:20px;cursor:pointer;color:#fff}
+  #shot{position:fixed;left:16px;bottom:60px;width:200px;z-index:6;padding:6px;display:none}
+  #shot img{width:100%;border-radius:10px;display:block}
+  #shot a{display:block;text-align:center;color:#ffd27a;font-size:12px;margin-top:4px}
+  .gamerows{display:none;border-top:1px solid rgba(255,255,255,.15);margin-top:6px;padding-top:4px}
+  body.game .gamerows{display:block}
+  .pop{position:fixed;z-index:8;transform:translate(-50%,-50%);font-weight:800;font-size:24px;pointer-events:none;text-shadow:0 2px 8px rgba(0,0,0,.6);animation:popUp 1.1s ease-out forwards}
+  @keyframes popUp{0%{opacity:0;transform:translate(-50%,-30%) scale(.6)}15%{opacity:1;transform:translate(-50%,-60%) scale(1.15)}100%{opacity:0;transform:translate(-50%,-220%) scale(1)}}
+  #mctl{display:none;position:fixed;left:50%;bottom:18px;transform:translateX(-50%);gap:14px;z-index:6}
+  #mctl button{width:62px;height:62px;border-radius:50%;font-size:24px;color:#fff;cursor:pointer}
+  @media (pointer:coarse),(max-width:760px){ body.game.playing #mctl{display:flex} }
+  @media (max-width:760px){
+    #toggle{display:block}
+    #panel{top:70px;transform:translateX(120%)}
+    #panel.open{transform:none}
+    #hint{display:none}
+    #stats{min-width:0;padding:10px 12px}
+    #stats h2{font-size:15px}
+    .row{font-size:12px;line-height:1.7}
+  }
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<div id="splash">
+  <div class="inner">
+    <h1>鹈鹕<span>骑行记</span></h1>
+    <p>一只名叫「小鹈」的鹈鹕，骑着红色单车，沿着日落海岸出发 🌅</p>
+    <button class="btn-main" id="startBtn">🚲 开始骑行（含语音导览）</button>
+    <small>建议开启声音 · Three.js 实时 3D 渲染</small>
+  </div>
+</div>
+
+<div id="stats" class="glass hidden">
+  <h2>🦤 小鹈的<span>海岸骑行</span></h2>
+  <div class="row"><span>速度</span><b id="sSpeed">0 km/h</b></div>
+  <div class="row"><span>里程</span><b id="sDist">0 m</b></div>
+  <div class="row"><span>踏频</span><b id="sRpm">0 rpm</b></div>
+  <div class="row"><span>骑行时间</span><b id="sTime">00:00</b></div>
+  <div class="row"><span>跳跃次数</span><b id="sJump">0</b></div>
+  <div class="gamerows">
+    <div class="row"><span>🐟 得分</span><b id="sScore">0</b></div>
+    <div class="row"><span>🔥 连击</span><b id="sCombo">0</b></div>
+    <div class="row"><span>🏆 最高分</span><b id="sBest">0</b></div>
+  </div>
+  <div id="speedo"><i id="speedBar"></i></div>
+</div>
+
+<button id="toggle" class="glass">⚙️</button>
+<div id="panel" class="glass hidden">
+  <h3>🚴 骑行速度 <span id="spdLabel">18 km/h</span></h3>
+  <input type="range" id="speed" min="0" max="12" step="0.1" value="5" />
+  <h3>🌗 时间</h3>
+  <div class="grp" id="todGrp">
+    <button data-v="day">☀️ 白天</button>
+    <button data-v="sunset" class="on">🌇 黄昏</button>
+    <button data-v="night">🌙 夜晚</button>
+  </div>
+  <h3>🎥 镜头</h3>
+  <div class="grp" id="camGrp">
+    <button data-v="orbit" class="on">环绕</button>
+    <button data-v="chase">跟随</button>
+    <button data-v="side">侧面</button>
+    <button data-v="cinema">电影</button>
+    <button data-v="pov">第一人称</button>
+  </div>
+  <h3>🌦️ 天气</h3>
+  <div class="grp" id="wxGrp">
+    <button data-v="clear" class="on">☀️ 晴</button>
+    <button data-v="rain">🌧️ 雨</button>
+    <button data-v="snow">❄️ 雪</button>
+    <button data-v="sakura">🌸 樱花</button>
+  </div>
+  <h3>🎯 游戏</h3>
+  <div class="grp">
+    <button id="bGame" class="on">🐟 捉鱼模式</button>
+    <button id="bFire">🎆 烟花</button>
+    <button id="bBloom" class="on">✨ 辉光</button>
+  </div>
+  <h3>🎮 动作</h3>
+  <div class="grp">
+    <button id="bBell">🔔 响铃</button>
+    <button id="bHonk">📣 鸣叫</button>
+    <button id="bJump">⬆️ 跳跃</button>
+    <button id="bShot">📷 截图</button>
+  </div>
+  <h3>🔊 声音</h3>
+  <div class="grp">
+    <button id="bVoice">🎙️ 语音导览</button>
+    <button id="bOcean" class="on">🌊 海浪声</button>
+  </div>
+</div>
+
+<div id="hint" class="glass hidden">🖱️ 拖动旋转 · 滚轮缩放 · ↑/↓ 调速 · ←/→ 换道 · 空格 跳跃 · W 天气 · F 烟花 · G 捉鱼 · B 响铃 · H 鸣叫 · C 切镜头 · T 切时间 · P 截图</div>
+<div id="toast" class="glass"></div>
+<div id="mctl"><button id="mLeft" class="glass">◀</button><button id="mJump" class="glass">⤒</button><button id="mRight" class="glass">▶</button></div>
+<div id="shot" class="glass"><img id="shotImg" alt=""><a id="shotLink" download="pelican-ride.png" href="#">⬇ 下载截图</a></div>
+
+<script type="importmap">
+{ "imports": { "three": "./lib/three.module.js", "three/addons/": "./lib/addons/" } }
+</script>
+<script type="module" src="./main.js"></script>
+</body>
+</html>
